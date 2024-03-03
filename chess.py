@@ -1,3 +1,4 @@
+import os
 from algebraic_expression_parser import AlgebraicExpressionParser
 from models import (
     Action,
@@ -120,16 +121,35 @@ class Game:
         self.current_turn = Color.WHITE
 
     def play(self):
+        show_error = False
+        error_msg = ""
         # begins infinite loop
         while 1:
+            self._clear_screen()
             self.board.show()
+            if show_error:
+                print(error_msg)
+                show_error = False
+
             player_input = input(f"{self.current_turn} > ")
             player_movement = self.parser.parse(player_input)
             try:
                 self.board.perform_movement(player_movement, self.current_turn)
                 self._next_turn()
             except InvalidMovement:
-                print("Invalid movement. Try again!")
+                error_msg = "Invalid movement. Try again!"
+                show_error = True
+
+    def _clear_screen(self):
+        # For POSIX (Linux, macOS)
+        if os.name == 'posix':
+            os.system('clear')
+        # For Windows
+        elif os.name == 'nt':
+            os.system('cls')
+        # For other systems, try ANSI escape codes
+        else:
+            print('\033[H\033[J')  # ANSI escape code for clearing screen
 
     def _next_turn(self):
         self.current_turn = (
