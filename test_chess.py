@@ -16,6 +16,7 @@ from models import (
 from algebraic_expression_parser import AlgebraicExpressionParser
 from chess import (
     Board,
+    get_initial_board,
 )
 
 
@@ -973,9 +974,264 @@ class TestKing(unittest.TestCase):
 
 
 class TestBoard(unittest.TestCase):
+
     def setUp(self):
-        pieces = []
+        pieces = self.get_initial_pieces_castling()
         self.board = Board(pieces)
+
+    def get_initial_pieces_castling(self):
+        # 8 |  R  |     |     |     |  K  |     |     |  R  |
+        #  --------------------------------------------------
+        # 7 |  P  |  P  |  P  |     |     |  P  |  P  |  P  |
+        #  --------------------------------------------------
+        # 6 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 5 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 4 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 3 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 2 |  P' |  P' |  P' |     |     |  P' |  P' |  P' |
+        # --------------------------------------------------
+        # 1 |  R' |     |     |     |  K' |     |     |  R' |
+        # --------------------------------------------------
+        #      a     b     c     d     e     f     g     h
+
+        pieces = []
+        # WHITE
+        pieces.append(Pawn(position=Position(6, 0), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 1), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 2), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 5), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 6), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 7), color=Color.WHITE))
+        pieces.append(Rook(position=Position(7, 0), color=Color.WHITE))
+        pieces.append(Rook(position=Position(7, 7), color=Color.WHITE))
+        pieces.append(King(position=Position(7, 4), color=Color.WHITE))
+
+        # BLACK
+        pieces.append(Pawn(position=Position(1, 0), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 1), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 2), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 5), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 6), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 7), color=Color.BLACK))
+        pieces.append(Rook(position=Position(0, 0), color=Color.BLACK))
+        pieces.append(Rook(position=Position(0, 7), color=Color.BLACK))
+        pieces.append(King(position=Position(0, 4), color=Color.BLACK))
+
+        return pieces
+
+    def test_castling_king_white(self):
+        # We need to populate history movements with atleast one movement
+        # because we just created the board and history_movements is empty
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 0), color=Color.BLACK),
+            Movement(category=Category.PAWN, action=Action.MOVE,
+                     next_position=Position(2, 0))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        king = [p for p in self.board.pieces if p.category ==
+                Category.KING and p.color == Color.WHITE][0]
+        right_rook = [p for p in self.board.pieces if p.category ==
+                      Category.ROOK and p.color == Color.WHITE and p.position.y == 7][0]
+        self.board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(king.position.x, 7)
+        self.assertEqual(king.position.y, 6)
+        self.assertEqual(right_rook.position.x, 7)
+        self.assertEqual(right_rook.position.y, 5)
+
+    def test_castling_king_black(self):
+        # We need to populate history movements with atleast one movement
+        # because we just created the board and history_movements is empty
+        self.board.history_movements.append((
+            Pawn(position=Position(6, 0), color=Color.WHITE),
+            Movement(category=Category.PAWN, action=Action.MOVE,
+                     next_position=Position(5, 0))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        king = [p for p in self.board.pieces if p.category ==
+                Category.KING and p.color == Color.BLACK][0]
+        right_rook = [p for p in self.board.pieces if p.category ==
+                      Category.ROOK and p.color == Color.BLACK and p.position.y == 7][0]
+        self.board.perform_movement(move, Color.BLACK)
+
+        self.assertEqual(king.position.x, 0)
+        self.assertEqual(king.position.y, 6)
+        self.assertEqual(right_rook.position.x, 0)
+        self.assertEqual(right_rook.position.y, 5)
+
+    def test_castling_king_white_no_space(self):
+        # - g1 and f1 or g8 and f8 are not free.
+        self.board.pieces.append(Pawn(Position(7, 6), Color.WHITE))
+        self.board.pieces.append(Pawn(Position(7, 5), Color.WHITE))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_castling_king_black_no_space(self):
+        # - g1 and f1 or g8 and f8 are not free.
+        self.board.pieces.append(Pawn(Position(0, 6), Color.BLACK))
+        self.board.pieces.append(Pawn(Position(0, 5), Color.BLACK))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
+
+    def test_castling_king_white_king_moved(self):
+        # - King has moved.
+        self.board.history_movements.append((
+            King(position=Position(7, 4), color=Color.WHITE),
+            Movement(category=Category.KING, action=Action.MOVE,
+                     next_position=Position(7, 5))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_castling_king_black_king_moved(self):
+        # - King has moved.
+        self.board.history_movements.append((
+            King(position=Position(0, 4), color=Color.BLACK),
+            Movement(category=Category.KING, action=Action.MOVE,
+                     next_position=Position(0, 5))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
+
+    def test_castling_king_white_rook_moved(self):
+        # - Rook has moved.
+        self.board.history_movements.append((
+            Rook(position=Position(7, 7), color=Color.WHITE),
+            Movement(category=Category.ROOK, action=Action.MOVE,
+                     next_position=Position(6, 7))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_castling_king_black_rook_moved(self):
+        # - Rook has moved.
+        self.board.history_movements.append((
+            Rook(position=Position(0, 7), color=Color.BLACK),
+            Movement(category=Category.ROOK, action=Action.MOVE,
+                     next_position=Position(1, 7))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
+
+    def test_castling_king_white_king_in_check(self):
+        # - King is in check.
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 5), color=Color.BLACK),
+            Movement(category=Category.PAWN, action=Action.CHECK,
+                     next_position=Position(2, 5))
+        ))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_castling_king_black_king_in_check(self):
+        # - King is in check.
+        self.board.history_movements.append((
+            Pawn(position=Position(6, 5), color=Color.WHITE),
+            Movement(category=Category.PAWN, action=Action.CHECK,
+                     next_position=Position(5, 5))
+        ))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
+
+    def test_castling_king_white_king_passes_through_check_in_7_5(self):
+        # - King passes through check.
+
+        # Add a previous movement to avoid king is in check checking from firing
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 5), color=Color.BLACK),
+            Movement(category=Category.PAWN, action=Action.CHECK,
+                     next_position=Position(2, 5))
+        ))
+
+        # Add piece that puts king in check in position 7, 5
+        self.board.pieces.append(Bishop(Position(5, 3), Color.BLACK))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_castling_king_white_king_passes_through_check_in_7_6(self):
+        # - King passes through check.
+
+        # Add a previous movement to avoid king is in check checking from firing
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 5), color=Color.BLACK),
+            Movement(category=Category.PAWN, action=Action.CHECK,
+                     next_position=Position(2, 5))
+        ))
+
+        # Add piece that puts king in check in position 7, 6
+        self.board.pieces.append(Knight(Position(5, 5), Color.BLACK))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_castling_king_black_king_passes_through_check_in_0_5(self):
+        # - King passes through check.
+
+        # Add a previous movement to avoid king is in check checking from firing
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 5), color=Color.WHITE),
+            Movement(category=Category.PAWN, action=Action.CHECK,
+                     next_position=Position(2, 5))
+        ))
+
+        # Add piece that puts king in check in position 0, 5
+        self.board.pieces.append(Bishop(Position(2, 3), Color.WHITE))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
+
+    def test_castling_king_black_king_passes_through_check_in_0_6(self):
+        # - King passes through check.
+
+        # Add a previous movement to avoid king is in check checking from firing
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 5), color=Color.WHITE),
+            Movement(category=Category.PAWN, action=Action.CHECK,
+                     next_position=Position(2, 5))
+        ))
+
+        # Add piece that puts king in check in position 0, 6
+        self.board.pieces.append(Knight(Position(2, 5), Color.WHITE))
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_KING, next_position=None)
+
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
 
 
 if __name__ == "__main__":

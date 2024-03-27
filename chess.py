@@ -1,4 +1,5 @@
 import os
+import copy
 from algebraic_expression_parser import AlgebraicExpressionParser
 from models import (
     Action,
@@ -15,42 +16,200 @@ from models import (
     Queen,
     King,
 )
-from typing import List
+from typing import List, Tuple
 
 
 class Board:
     def __init__(self, pieces: List[Piece]):
-        self.pieces = pieces
+        self.pieces: List[Piece] = pieces
+        self.history_movements: List[Tuple[Piece, Movement]] = []
+        self.captured_pieces: List[Piece] = []
 
     # TODO: next_state
     def perform_movement(self, move: Movement, color: Color):
-        possible_pieces = self._get_possible_pieces(move, color)
+        if move.action == Action.MOVE:
+            self._move(move, color)
+        elif move.action == Action.CASTLING_KING:
+            self._castling_king(move, color)
+        elif move.action == Action.CASTLING_QUEEN:
+            pass
+        elif move.action == Action.CAPTURE:
+            self._capture(move, color)
+        else:
+            raise InvalidMovement()
 
-        if (
-            move.action == Action.MOVE
-            and self._is_square_empty(move.next_position)
-        ):
-            # At this point, there must be only one valid piece,
-            # although there could be multiple pieces with the
-            # same color and category
-            # i.e. only one piece can move to the next position.
-            moved = False
-            for p in possible_pieces:
+    def _move(self, move: Movement, color: Color):
+        if not self._is_square_empty(move.next_position):
+            raise InvalidMovement("Target square is not empty!")
+
+        possible_pieces = self._get_possible_pieces(move, color)
+        # At this point, there must be only one valid piece,
+        # although there could be multiple pieces with the
+        # same color and category
+        # i.e. only one piece can move to the next position.
+        moved = False
+        piece_moved = None
+        for p in possible_pieces:
+            try:
+                if move.category != Category.KNIGHT:
+                    # Check if there is a piece in the way
+                    if self._piece_in_the_way(p, move):
+                        continue
+                p.move(move)
+                moved = True
+                piece_moved = copy.deepcopy(p)
+            except InvalidMovement:
+                continue
+
+        if not moved:
+            raise InvalidMovement()
+
+        self.history_movements.append((piece_moved, move))
+
+    def _castling_king(self, move: Movement, color: Color):
+        # KING SIDE RULES:
+        # - g1 and f1 or g8 and f8 free.
+        # - King cannot have moved.
+        # - Rook (right) cannot have moved.
+        # - King cannot be in check.
+        # - King cannot pass through check.
+
+        if color == Color.WHITE:
+            if not self._is_square_empty(Position(7, 5)) and not self._is_square_empty(Position(7, 6)):
+                raise InvalidMovement("g1 and f1 must be free.")
+        else:
+            # Check if the squares at (0, 5) and (0, 6) are empty
+            if not self._is_square_empty(Position(0, 5)) and not self._is_square_empty(Position(0, 6)):
+                raise InvalidMovement("g8 and f8 must be free.")
+
+        for piece, move in self.history_movements:
+            # King cannot have moved.
+            if (
+                piece.category == Category.KING
+                and piece.color == color
+                and move.action == Action.MOVE
+            ):
+                raise InvalidMovement(
+                    "Your king has been moved previously.")
+
+            # Right Rook cannot have moved.
+            if (
+                piece.category == Category.ROOK
+                and piece.color == color
+                and move.action in [
+                    Action.MOVE,
+                    Action.CAPTURE,
+                    Action.CHECK,
+                ]
+            ):
+                if (
+                    piece.position.x == 7
+                    and piece.position.y == 7
+                    and piece.color == Color.WHITE
+                ):
+                    raise InvalidMovement(
+                        "Your right rook has been moved previously.")
+
+                if (
+                    piece.position.x == 0
+                    and piece.position.y == 7
+                    and piece.color == Color.BLACK
+                ):
+                    raise InvalidMovement(
+                        "Your right rook has been moved previously.")
+
+        # King cannot be in check.
+        if self._is_king_in_check():
+            raise InvalidMovement("Your king is in check!")
+
+        if self._is_king_passing_through_check(color):
+            raise InvalidMovement("Your king pass through check!")
+
+        king = [p for p in self.pieces if p.category ==
+                Category.KING and p.color == color][0]
+        right_rook = [p for p in self.pieces if p.category ==
+                      Category.ROOK and p.color == color and p.position.y == 7][0]
+
+        # king.move(Movement(Category.KING, Action.MOVE, Position(7, 6)))
+        # right_rook.move(Movement(Category.ROOK, Action.MOVE, Position(7, 5)))
+        if color == Color.WHITE:
+            king.position = Position(7, 6)
+            right_rook.position = Position(7, 5)
+        else:
+            king.position = Position(0, 6)
+            right_rook.position = Position(0, 5)
+
+    def _capture(self, move: Movement, color: Color):
+        if self._is_square_empty(move.next_position):
+            raise InvalidMovement("You cannot capture an empty square!")
+
+        possible_pieces = self._get_possible_pieces(move, color)
+        # At this point, there must be only one valid piece,
+        # although there could be multiple pieces with the
+        # same color and category
+        # i.e. only one piece can move to the next position.
+        moved = False
+        piece_moved = None
+        for p in possible_pieces:
+            try:
+                if move.category != Category.KNIGHT:
+                    # Check if there is a piece in the way
+                    if self._piece_in_the_way_without_last_position(p, move):
+                        continue
+                p.move(move)
+                moved = True
+                captured_piece = [
+                    p for p in self.pieces if p.position == move.next_position][0]
+                self.captured_pieces.append(captured_piece)
+                self.pieces.remove(captured_piece)
+                piece_moved = copy.deepcopy(p)
+            except InvalidMovement:
+                continue
+
+        if not moved:
+            raise InvalidMovement()
+
+        self.history_movements.append((piece_moved, move))
+
+    def _is_king_passing_through_check(self, color):
+        if color == Color.WHITE:
+            positions_to_check = [Position(x=7, y=5), Position(x=7, y=6)]
+        else:
+            positions_to_check = [Position(x=0, y=5), Position(x=0, y=6)]
+
+        enemy_color = self._get_enemy_color(color)
+        # King cannot pass through check.
+        for position in positions_to_check:
+            current_board = copy.deepcopy(self)
+            king = [p for p in current_board.pieces if p.category ==
+                    Category.KING and p.color == color][0]
+            king.move(Movement(Category.KING, Action.MOVE, position))
+            # King is in check if there is an enemy
+            # piece that can capture your king
+            enemy_pieces = [
+                p for p in current_board.pieces if p.color == enemy_color]
+
+            for enemy_piece in enemy_pieces:
                 try:
-                    if move.category != Category.KNIGHT:
-                        # Check if there is a piece in the way
-                        if self._piece_in_the_way(p, move):
-                            continue
-                    p.move(move)
-                    moved = True
+                    current_board.perform_movement(
+                        Movement(
+                            enemy_piece.category,
+                            Action.CAPTURE,
+                            position
+                        ),
+                        enemy_color
+                    )
+                    return True
                 except InvalidMovement:
                     continue
 
-            if not moved:
-                raise InvalidMovement()
+        return False
 
-        else:
-            raise InvalidMovement()
+    def _get_enemy_color(self, current_color):
+        return Color.BLACK if current_color == Color.WHITE else Color.WHITE
+
+    def _is_king_in_check(self):
+        return self.history_movements[-1][1].action == Action.CHECK
 
     def _get_possible_pieces(self, move: Movement, color: Color):
         possible_pieces = [
@@ -78,6 +237,15 @@ class Board:
 
     def _piece_in_the_way(self, piece: Piece, move: Movement):
         path = piece.get_path(move)
+
+        for other_piece in self.pieces:
+            if piece is not other_piece and other_piece.position in path:
+                return True
+
+        return False
+
+    def _piece_in_the_way_without_last_position(self, piece: Piece, move: Movement):
+        path = piece.get_path(move)[:-1]
 
         for other_piece in self.pieces:
             if piece is not other_piece and other_piece.position in path:
