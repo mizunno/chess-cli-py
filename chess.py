@@ -308,6 +308,10 @@ class Board:
         for piece in self.pieces:
             board[piece.position.x][piece.position.y] = str(piece)
 
+        print("Welcome to Chess CLI Py!")
+        print("Type 'help' for more information.")
+        print()
+
         for i, row in enumerate(board):
             print("  ", end="")
             print("-" * 50)
@@ -325,6 +329,7 @@ class Board:
         print("-" * 50)
 
         print("      a     b     c     d     e     f     g     h")
+        print()
 
     def __str__(self):
         pass
@@ -335,7 +340,8 @@ class Game:
         self.board = board
         self.parser = parser
         # stack with all board states
-        self.board_states = []
+        self.board_states = [copy.deepcopy(self.board)]
+        self.current_board_state_idx = 0
         self.current_turn = Color.WHITE
 
     def play(self):
@@ -350,13 +356,65 @@ class Game:
                 show_error = False
 
             player_input = input(f"{self.current_turn} > ")
+
+            if player_input == "exit":
+                break
+            elif player_input == "undo":
+                if self.current_board_state_idx == 0:
+                    error_msg = "No more undos available."
+                    show_error = True
+                    continue
+
+                self.current_board_state_idx -= 1
+                self.board = self.board_states[self.current_board_state_idx]
+                self._next_turn()
+                continue
+            elif player_input == "redo":
+                if self.current_board_state_idx == len(self.board_states) - 1:
+                    error_msg = "No more redos available."
+                    show_error = True
+                    continue
+
+                self.current_board_state_idx += 1
+                self.board = self.board_states[self.current_board_state_idx]
+                self._next_turn()
+                continue
+            elif player_input == "how":
+                print()
+                print("Movement is coded using algebraic notation. For example:")
+                print("  - 'e4' means move the pawn to the e4 square.")
+                print("  - 'Nf3' means move the knight to the f3 square.")
+                print("  - 'O-O' means castling king side.")
+                print("  - 'O-O-O' means castling queen side.")
+                print("  - 'exd5' means capture the pawn at d5 with the e pawn.")
+                print("  - 'Nxd5' means capture the pawn at d5 with the knight.")
+                print()
+                print(
+                    "See 'https://www.chess.com/terms/chess-notation' for more information.")
+                input("Press any key to continue...")
+                continue
+            elif player_input == "help":
+                print()
+                print("Type 'exit' to leave the game.")
+                print("Type 'undo' to undo the last movement.")
+                print("Type 'redo' to redo the last undone.")
+                print("Type 'how' to show the movement notation.")
+                print("Type 'help' to show this message.")
+                input("Press any key to continue...")
+                continue
+
             player_movement = self.parser.parse(player_input)
             try:
                 self.board.perform_movement(player_movement, self.current_turn)
                 self._next_turn()
+                self._save_board_state()
             except InvalidMovement:
                 error_msg = "Invalid movement. Try again!"
                 show_error = True
+
+    def _save_board_state(self):
+        self.board_states.append(copy.deepcopy(self.board))
+        self.current_board_state_idx += 1
 
     def _clear_screen(self):
         # For POSIX (Linux, macOS)
