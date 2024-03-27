@@ -973,7 +973,7 @@ class TestKing(unittest.TestCase):
         self.assertEqual(path, [Position(4, 1)])
 
 
-class TestBoard(unittest.TestCase):
+class TestBoardCastling(unittest.TestCase):
 
     def setUp(self):
         pieces = self.get_initial_pieces_castling()
@@ -1232,6 +1232,56 @@ class TestBoard(unittest.TestCase):
 
         with self.assertRaises(InvalidMovement):
             self.board.perform_movement(move, Color.BLACK)
+
+    def test_castling_queen_white(self):
+        # We need to populate history movements with atleast one movement
+        # because we just created the board and history_movements is empty
+        self.board.history_movements.append((
+            Pawn(position=Position(1, 0), color=Color.BLACK),
+            Movement(category=Category.PAWN, action=Action.MOVE,
+                     next_position=Position(2, 0))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_QUEEN, next_position=None)
+        king = [p for p in self.board.pieces if p.category ==
+                Category.KING and p.color == Color.WHITE][0]
+        left_rook = [p for p in self.board.pieces if p.category ==
+                     Category.ROOK and p.color == Color.WHITE and p.position.y == 0][0]
+        self.board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(king.position.x, 7)
+        self.assertEqual(king.position.y, 2)
+        self.assertEqual(left_rook.position.x, 7)
+        self.assertEqual(left_rook.position.y, 3)
+
+    def test_castling_queen_black(self):
+        # We need to populate history movements with atleast one movement
+        # because we just created the board and history_movements is empty
+        self.board.history_movements.append((
+            Pawn(position=Position(6, 0), color=Color.WHITE),
+            Movement(category=Category.PAWN, action=Action.MOVE,
+                     next_position=Position(5, 0))
+        ))
+
+        move = Movement(category=Category.KING,
+                        action=Action.CASTLING_QUEEN, next_position=None)
+        king = [p for p in self.board.pieces if p.category ==
+                Category.KING and p.color == Color.BLACK][0]
+        left_rook = [p for p in self.board.pieces if p.category ==
+                     Category.ROOK and p.color == Color.BLACK and p.position.y == 0][0]
+        self.board.perform_movement(move, Color.BLACK)
+
+        self.assertEqual(king.position.x, 0)
+        self.assertEqual(king.position.y, 2)
+        self.assertEqual(left_rook.position.x, 0)
+        self.assertEqual(left_rook.position.y, 3)
+
+
+class TestBoardCapture(unittest.TestCase):
+
+    def setUp(self):
+        pass
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ class Board:
         elif move.action == Action.CASTLING_KING:
             self._castling_king(move, color)
         elif move.action == Action.CASTLING_QUEEN:
-            pass
+            self._castling_queen(move, color)
         elif move.action == Action.CAPTURE:
             self._capture(move, color)
         else:
@@ -67,6 +67,8 @@ class Board:
         self.history_movements.append((piece_moved, move))
 
     def _castling_king(self, move: Movement, color: Color):
+        # TODO: refactor
+
         # KING SIDE RULES:
         # - g1 and f1 or g8 and f8 free.
         # - King cannot have moved.
@@ -84,39 +86,14 @@ class Board:
 
         for piece, move in self.history_movements:
             # King cannot have moved.
-            if (
-                piece.category == Category.KING
-                and piece.color == color
-                and move.action == Action.MOVE
-            ):
+            if self._king_has_moved(color):
                 raise InvalidMovement(
                     "Your king has been moved previously.")
 
             # Right Rook cannot have moved.
-            if (
-                piece.category == Category.ROOK
-                and piece.color == color
-                and move.action in [
-                    Action.MOVE,
-                    Action.CAPTURE,
-                    Action.CHECK,
-                ]
-            ):
-                if (
-                    piece.position.x == 7
-                    and piece.position.y == 7
-                    and piece.color == Color.WHITE
-                ):
-                    raise InvalidMovement(
-                        "Your right rook has been moved previously.")
-
-                if (
-                    piece.position.x == 0
-                    and piece.position.y == 7
-                    and piece.color == Color.BLACK
-                ):
-                    raise InvalidMovement(
-                        "Your right rook has been moved previously.")
+            if self._right_rook_has_moved(color):
+                raise InvalidMovement(
+                    "Your right rook has been moved previously.")
 
         # King cannot be in check.
         if self._is_king_in_check():
@@ -125,19 +102,62 @@ class Board:
         if self._is_king_passing_through_check(color):
             raise InvalidMovement("Your king pass through check!")
 
-        king = [p for p in self.pieces if p.category ==
-                Category.KING and p.color == color][0]
+        king = self._get_king(color)
         right_rook = [p for p in self.pieces if p.category ==
                       Category.ROOK and p.color == color and p.position.y == 7][0]
 
-        # king.move(Movement(Category.KING, Action.MOVE, Position(7, 6)))
-        # right_rook.move(Movement(Category.ROOK, Action.MOVE, Position(7, 5)))
         if color == Color.WHITE:
             king.position = Position(7, 6)
             right_rook.position = Position(7, 5)
         else:
             king.position = Position(0, 6)
             right_rook.position = Position(0, 5)
+
+    def _castling_queen(self, move: Movement, color: Color):
+        # TODO: refactor
+
+        # QUEEN SIDE RULES:
+        # - c1 and d1 or c8 and d8 free.
+        # - King cannot have moved.
+        # - Rook (left) cannot have moved.
+        # - King cannot be in check.
+        # - King cannot pass through check.
+
+        if color == Color.WHITE:
+            if not self._is_square_empty(Position(7, 1)) and not self._is_square_empty(Position(7, 2)) and not self._is_square_empty(Position(7, 3)):
+                raise InvalidMovement("b1, c1, and d1 must be free.")
+        else:
+            if not self._is_square_empty(Position(0, 1)) and not self._is_square_empty(Position(0, 2)) and not self._is_square_empty(Position(0, 3)):
+                raise InvalidMovement("b8, c8, and d8 must be free.")
+
+        for piece, move in self.history_movements:
+            # King cannot have moved.
+            if self._king_has_moved(color):
+                raise InvalidMovement(
+                    "Your king has been moved previously.")
+
+            # Right Rook cannot have moved.
+            if self._left_rook_has_moved(color):
+                raise InvalidMovement(
+                    "Your right rook has been moved previously.")
+
+        # King cannot be in check.
+        if self._is_king_in_check():
+            raise InvalidMovement("Your king is in check!")
+
+        if self._is_king_passing_through_check(color):
+            raise InvalidMovement("Your king pass through check!")
+
+        king = self._get_king(color)
+        left_rook = [p for p in self.pieces if p.category ==
+                     Category.ROOK and p.color == color and p.position.y == 0][0]
+
+        if color == Color.WHITE:
+            king.position = Position(7, 2)
+            left_rook.position = Position(7, 3)
+        else:
+            king.position = Position(0, 2)
+            left_rook.position = Position(0, 3)
 
     def _capture(self, move: Movement, color: Color):
         if self._is_square_empty(move.next_position):
@@ -158,8 +178,7 @@ class Board:
                         continue
                 p.move(move)
                 moved = True
-                captured_piece = [
-                    p for p in self.pieces if p.position == move.next_position][0]
+                captured_piece = self._get_piece(move.next_position)
                 self.captured_pieces.append(captured_piece)
                 self.pieces.remove(captured_piece)
                 piece_moved = copy.deepcopy(p)
@@ -170,6 +189,37 @@ class Board:
             raise InvalidMovement()
 
         self.history_movements.append((piece_moved, move))
+
+    def _get_king(self, color: Color):
+        return [p for p in self.pieces if p.category == Category.KING and p.color == color][0]
+
+    def _get_piece(self, position: Position):
+        for piece in self.pieces:
+            if piece.position == position:
+                return piece
+
+        return None
+
+    def _king_has_moved(self, color):
+        for piece, move in self.history_movements:
+            if piece.category == Category.KING and piece.color == color:
+                return True
+
+        return False
+
+    def _right_rook_has_moved(self, color):
+        for piece, move in self.history_movements:
+            if piece.category == Category.ROOK and piece.color == color and piece.position.y == 7:
+                return True
+
+        return False
+
+    def _left_rook_has_moved(self, color):
+        for piece, move in self.history_movements:
+            if piece.category == Category.ROOK and piece.color == color and piece.position.y == 0:
+                return True
+
+        return False
 
     def _is_king_passing_through_check(self, color):
         if color == Color.WHITE:
