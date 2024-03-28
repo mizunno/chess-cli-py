@@ -100,7 +100,11 @@ class Pawn(Piece):
             self.position = move.next_position
 
         elif move.action == Action.CAPTURE:
-            pass
+            if not self._is_valid_capture(move):
+                print("asd")
+                raise InvalidMovement()
+
+            self.position = move.next_position
 
     def get_path(self, move: Movement):
         if not self._is_valid_move(move) or is_outside_board(move):
@@ -141,6 +145,24 @@ class Pawn(Piece):
                 and self.position.x - 1 == move.next_position.x
             )
 
+    def _is_valid_capture(self, move: Movement):
+        if self.color == Color.BLACK:
+            return (
+                self.position.x + 1 == move.next_position.x
+                and self.position.y - 1 == move.next_position.y
+            ) or (
+                self.position.x + 1 == move.next_position.x
+                and self.position.y + 1 == move.next_position.y
+            )
+        else:
+            return (
+                self.position.x - 1 == move.next_position.x
+                and self.position.y - 1 == move.next_position.y
+            ) or (
+                self.position.x - 1 == move.next_position.x
+                and self.position.y + 1 == move.next_position.y
+            )
+
 
 class Rook(Piece):
     def __init__(self, position: Position, color: Color):
@@ -151,11 +173,10 @@ class Rook(Piece):
             raise InvalidMovement(
                 "Can't move to a position outside the board!")
 
-        if move.action == Action.MOVE:
-            if not self._is_valid_move(move):
-                raise InvalidMovement()
+        if not self._is_valid_move(move):
+            raise InvalidMovement()
 
-            self.position = move.next_position
+        self.position = move.next_position
 
     def get_path(self, move: Movement):
         if not self._is_valid_move(move) or is_outside_board(move):
@@ -211,11 +232,10 @@ class Knight(Piece):
             raise InvalidMovement(
                 "Can't move to a position outside the board!")
 
-        if move.action == Action.MOVE:
-            if not self._is_valid_move(move):
-                raise InvalidMovement()
+        if not self._is_valid_move(move):
+            raise InvalidMovement()
 
-            self.position = move.next_position
+        self.position = move.next_position
 
     def get_path(self, move: Movement):
         return []
@@ -252,11 +272,10 @@ class Bishop(Piece):
             raise InvalidMovement(
                 "Can't move to a position outside the board!")
 
-        if move.action == Action.MOVE:
-            if not self._is_valid_move(move):
-                raise InvalidMovement()
+        if not self._is_valid_move(move):
+            raise InvalidMovement()
 
-            self.position = move.next_position
+        self.position = move.next_position
 
     def get_path(self, move: Movement):
         if not self._is_valid_move(move) or is_outside_board(move):
@@ -334,11 +353,10 @@ class Queen(Piece):
             raise InvalidMovement(
                 "Can't move to a position outside the board!")
 
-        if move.action == Action.MOVE:
-            if not self._is_valid_move(move):
-                raise InvalidMovement()
+        if not self._is_valid_move(move):
+            raise InvalidMovement()
 
-            self.position = move.next_position
+        self.position = move.next_position
 
     def get_path(self, move: Movement):
         if not self._is_valid_move(move) or is_outside_board(move):
@@ -437,11 +455,10 @@ class King(Piece):
             raise InvalidMovement(
                 "Can't move to a position outside the board!")
 
-        if move.action == Action.MOVE:
-            if not self._is_valid_move(move):
-                raise InvalidMovement()
+        if not self._is_valid_move(move):
+            raise InvalidMovement()
 
-            self.position = move.next_position
+        self.position = move.next_position
 
     def get_path(self, move: Movement):
         if not self._is_valid_move(move) or is_outside_board(move):

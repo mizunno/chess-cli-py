@@ -191,6 +191,11 @@ class TestAlgebraicExpressionParser(unittest.TestCase):
 
         self.assertEqual(expected, move)
 
+    def test_invalid_category(self):
+        expr = "bd5"
+        with self.assertRaises(ValueError):
+            self.parser.parse(expr)
+
 
 class TestPawn(unittest.TestCase):
     def test_pawn_is_pawn_category(self):
@@ -1280,8 +1285,211 @@ class TestBoardCastling(unittest.TestCase):
 
 class TestBoardCapture(unittest.TestCase):
 
+    def test_pawn_white_capture_1(self):
+        pieces = [
+            Pawn(position=Position(3, 3), color=Color.WHITE),
+            Pawn(position=Position(2, 4), color=Color.BLACK),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.PAWN,
+                        action=Action.CAPTURE, next_position=Position(2, 4))
+
+        board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(2, 4))
+        self.assertEqual(board.pieces[0].color, Color.WHITE)
+
+    def test_pawn_white_capture_2(self):
+        pieces = [
+            Pawn(position=Position(3, 3), color=Color.WHITE),
+            Pawn(position=Position(2, 2), color=Color.BLACK),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.PAWN,
+                        action=Action.CAPTURE, next_position=Position(2, 2))
+
+        board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(2, 2))
+        self.assertEqual(board.pieces[0].color, Color.WHITE)
+
+    def test_pawn_black_capture_1(self):
+        pieces = [
+            Pawn(position=Position(3, 3), color=Color.BLACK),
+            Pawn(position=Position(4, 2), color=Color.WHITE),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.PAWN,
+                        action=Action.CAPTURE, next_position=Position(4, 2))
+
+        board.perform_movement(move, Color.BLACK)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(4, 2))
+        self.assertEqual(board.pieces[0].color, Color.BLACK)
+
+    def test_pawn_black_capture_2(self):
+        pieces = [
+            Pawn(position=Position(3, 3), color=Color.BLACK),
+            Pawn(position=Position(4, 4), color=Color.WHITE),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.PAWN,
+                        action=Action.CAPTURE, next_position=Position(4, 4))
+
+        board.perform_movement(move, Color.BLACK)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(4, 4))
+        self.assertEqual(board.pieces[0].color, Color.BLACK)
+
+    def test_knight_white_capture(self):
+        pieces = [
+            Knight(position=Position(3, 3), color=Color.WHITE),
+            Pawn(position=Position(1, 2), color=Color.BLACK),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.KNIGHT,
+                        action=Action.CAPTURE, next_position=Position(1, 2))
+
+        board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(1, 2))
+        self.assertEqual(board.pieces[0].color, Color.WHITE)
+
+    def test_bishop_black_capture(self):
+        pieces = [
+            Bishop(position=Position(3, 3), color=Color.BLACK),
+            Pawn(position=Position(1, 1), color=Color.WHITE),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.BISHOP,
+                        action=Action.CAPTURE, next_position=Position(1, 1))
+
+        board.perform_movement(move, Color.BLACK)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(1, 1))
+        self.assertEqual(board.pieces[0].color, Color.BLACK)
+
+    def test_rook_white_capture(self):
+        pieces = [
+            Rook(position=Position(3, 3), color=Color.WHITE),
+            Pawn(position=Position(3, 1), color=Color.BLACK),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.ROOK,
+                        action=Action.CAPTURE, next_position=Position(3, 1))
+
+        board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(3, 1))
+        self.assertEqual(board.pieces[0].color, Color.WHITE)
+
+    def test_queen_black_capture(self):
+        pieces = [
+            Queen(position=Position(3, 3), color=Color.BLACK),
+            Pawn(position=Position(1, 5), color=Color.WHITE),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.QUEEN,
+                        action=Action.CAPTURE, next_position=Position(1, 5))
+
+        board.perform_movement(move, Color.BLACK)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(1, 5))
+        self.assertEqual(board.pieces[0].color, Color.BLACK)
+
+    def test_king_white_capture(self):
+        pieces = [
+            King(position=Position(3, 3), color=Color.WHITE),
+            Pawn(position=Position(2, 3), color=Color.BLACK),
+        ]
+
+        board = Board(pieces)
+        move = Movement(category=Category.KING,
+                        action=Action.CAPTURE, next_position=Position(2, 3))
+
+        board.perform_movement(move, Color.WHITE)
+
+        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(board.pieces[0].position, Position(2, 3))
+        self.assertEqual(board.pieces[0].color, Color.WHITE)
+
+
+class TestBoardCheck(unittest.TestCase):
+
     def setUp(self):
-        pass
+        pieces = self.get_initial_pieces_check()
+        self.board = Board(pieces)
+
+    def get_initial_pieces_check(self):
+        # 8 |  R  |     |     |     |  K  |     |     |  R  |
+        #  --------------------------------------------------
+        # 7 |  P  |  P  |  P  |     |     |  P  |  P  |  P  |
+        #  --------------------------------------------------
+        # 6 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 5 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 4 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 3 |     |     |     |     |     |     |     |     |
+        # --------------------------------------------------
+        # 2 |  P' |  P' |  P' |     |     |  P' |  P' |  P' |
+        # --------------------------------------------------
+        # 1 |  R' |     |     |     |  K' |     |     |  R' |
+        # --------------------------------------------------
+        #      a     b     c     d     e     f     g     h
+        pieces = []
+        # WHITE
+        pieces.append(Pawn(position=Position(6, 0), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 1), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 2), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 5), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 6), color=Color.WHITE))
+        pieces.append(Pawn(position=Position(6, 7), color=Color.WHITE))
+        pieces.append(Rook(position=Position(7, 0), color=Color.WHITE))
+        pieces.append(Rook(position=Position(7, 7), color=Color.WHITE))
+        pieces.append(King(position=Position(7, 4), color=Color.WHITE))
+
+        # BLACK
+        pieces.append(Pawn(position=Position(1, 0), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 1), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 2), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 5), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 6), color=Color.BLACK))
+        pieces.append(Pawn(position=Position(1, 7), color=Color.BLACK))
+        pieces.append(Rook(position=Position(0, 0), color=Color.BLACK))
+        pieces.append(Rook(position=Position(0, 7), color=Color.BLACK))
+        pieces.append(King(position=Position(0, 4), color=Color.BLACK))
+
+        return pieces
+
+    # def test_check_white_with_pawn(self):
+    #     # Add piece that puts king in check in position d2
+    #     self.board.pieces.append(Pawn(Position(5, 3), Color.BLACK))
+    #
+    #     self.board.show()
+    #
+    #     move = Movement(category=Category.PAWN, action=Action.CHECK,
+    #                     next_position=Position(6, 3))
+    #
+    #     self.board.perform_movement(move, Color.BLACK)
+    #     self.board.show()
 
 
 if __name__ == "__main__":

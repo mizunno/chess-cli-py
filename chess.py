@@ -35,6 +35,15 @@ class Board:
             self._castling_queen(move, color)
         elif move.action == Action.CAPTURE:
             self._capture(move, color)
+        elif move.action == Action.CHECK:
+            self._check(move, color)
+            pass
+        elif move.action == Action.CHECKMATE:
+            # self._checkmate(move, color)
+            pass
+        elif move.action == Action.PROMOTE:
+            # self._promote(move, color)
+            pass
         else:
             raise InvalidMovement()
 
@@ -170,17 +179,18 @@ class Board:
         # i.e. only one piece can move to the next position.
         moved = False
         piece_moved = None
+        piece_captured = self._get_piece(move.next_position)
+
         for p in possible_pieces:
             try:
-                if move.category != Category.KNIGHT:
+                if move.category != Category.KNIGHT and move.category != Category.PAWN:
                     # Check if there is a piece in the way
                     if self._piece_in_the_way_without_last_position(p, move):
                         continue
                 p.move(move)
                 moved = True
-                captured_piece = self._get_piece(move.next_position)
-                self.captured_pieces.append(captured_piece)
-                self.pieces.remove(captured_piece)
+                self.captured_pieces.append(piece_captured)
+                self.pieces.remove(piece_captured)
                 piece_moved = copy.deepcopy(p)
             except InvalidMovement:
                 continue
@@ -189,6 +199,33 @@ class Board:
             raise InvalidMovement()
 
         self.history_movements.append((piece_moved, move))
+
+    def _check(self, move: Movement, color: Color):
+        # We need to check if the king will be in check after the movement.
+        current_board = copy.deepcopy(self)
+        move.action = Action.MOVE
+        current_board.perform_movement(move, color)
+
+        enemy_color = self._get_enemy_color(color)
+        piece = current_board.history_movements[-1][0]
+
+        # Check if the enemy piece can capture the king
+        current_board.perform_movement(
+            Movement(
+                piece.category,
+                Action.CAPTURE,
+                current_board._get_king(enemy_color).position
+            ),
+            color
+        )
+
+        # At this point, we can actually perform the check movement.
+        self._move(move, color)
+        # Remove last history movement because the previous _move
+        # already added the movement to the history movements.
+        self.history_movements.pop()
+        move.action = Action.CHECK
+        self.history_movements.append((piece, move))
 
     def _get_king(self, color: Color):
         return [p for p in self.pieces if p.category == Category.KING and p.color == color][0]
@@ -266,15 +303,23 @@ class Board:
             p for p in self.pieces if p.category == move.category and p.color == color
         ]
 
-        if move.category == Category.PAWN:
-            valid_piece = [
+        if move.current_row is not None:
+            possible_pieces = [
+                p for p in possible_pieces if p.position.x == move.current_row]
+
+        if move.current_col is not None:
+            possible_pieces = [
+                p for p in possible_pieces if p.position.y == move.current_col]
+
+        if move.category == Category.PAWN and move.action == Action.MOVE:
+            return [
                 p for p in possible_pieces if p.position.y == move.next_position.y
             ]
-            return valid_piece
 
-        if move.current_col is not None or move.current_row is not None:
-            # code to infer in this case
-            return None
+        if move.category == Category.PAWN and move.action == Action.CAPTURE:
+            return [
+                p for p in possible_pieces if abs(p.position.x - move.next_position.x) == 1 and abs(p.position.y - move.next_position.y) == 1
+            ]
 
         return possible_pieces
 
@@ -307,10 +352,6 @@ class Board:
         board = [["" for i in range(8)] for i in range(8)]
         for piece in self.pieces:
             board[piece.position.x][piece.position.y] = str(piece)
-
-        print("Welcome to Chess CLI Py!")
-        print("Type 'help' for more information.")
-        print()
 
         for i, row in enumerate(board):
             print("  ", end="")
@@ -350,13 +391,15 @@ class Game:
         # begins infinite loop
         while 1:
             self._clear_screen()
-            self.board.show()
+            self._show_game()
             if show_error:
                 print(error_msg)
                 show_error = False
 
-            player_input = input(f"{self.current_turn} > ")
+            player_input = self._get_player_input()
 
+            if player_input == "":
+                continue
             if player_input == "exit":
                 break
             elif player_input == "undo":
@@ -380,37 +423,32 @@ class Game:
                 self._next_turn()
                 continue
             elif player_input == "how":
-                print()
-                print("Movement is coded using algebraic notation. For example:")
-                print("  - 'e4' means move the pawn to the e4 square.")
-                print("  - 'Nf3' means move the knight to the f3 square.")
-                print("  - 'O-O' means castling king side.")
-                print("  - 'O-O-O' means castling queen side.")
-                print("  - 'exd5' means capture the pawn at d5 with the e pawn.")
-                print("  - 'Nxd5' means capture the pawn at d5 with the knight.")
-                print()
-                print(
-                    "See 'https://www.chess.com/terms/chess-notation' for more information.")
-                input("Press any key to continue...")
+                self._show_how()
                 continue
             elif player_input == "help":
-                print()
-                print("Type 'exit' to leave the game.")
-                print("Type 'undo' to undo the last movement.")
-                print("Type 'redo' to redo the last undone.")
-                print("Type 'how' to show the movement notation.")
-                print("Type 'help' to show this message.")
-                input("Press any key to continue...")
+                self._show_help()
                 continue
 
-            player_movement = self.parser.parse(player_input)
             try:
+                player_movement = self.parser.parse(player_input)
                 self.board.perform_movement(player_movement, self.current_turn)
                 self._next_turn()
                 self._save_board_state()
             except InvalidMovement:
                 error_msg = "Invalid movement. Try again!"
                 show_error = True
+            except ValueError:
+                raise
+                error_msg = "Invalid category. Try again!"
+                show_error = True
+
+    def _get_player_input(self):
+        player_input = input(self._get_player_prompt())
+        player_input = player_input.strip()
+        return player_input
+
+    def _get_player_prompt(self):
+        return f"{self.current_turn} > "
 
     def _save_board_state(self):
         self.board_states.append(copy.deepcopy(self.board))
@@ -431,6 +469,35 @@ class Game:
         self.current_turn = (
             Color.BLACK if self.current_turn == Color.WHITE else Color.WHITE
         )
+
+    def _show_game(self):
+        print("Welcome to Chess CLI Py!")
+        print("Type 'help' for more information.")
+        print()
+        self.board.show()
+
+    def _show_help(self):
+        print()
+        print("Type 'exit' to leave the game.")
+        print("Type 'undo' to undo the last movement.")
+        print("Type 'redo' to redo the last undone.")
+        print("Type 'how' to show the movement notation.")
+        print("Type 'help' to show this message.")
+        input("Press any key to continue...")
+
+    def _show_how(self):
+        print()
+        print("Movement is coded using algebraic notation. For example:")
+        print("  - 'e4' means move the pawn to the e4 square.")
+        print("  - 'Nf3' means move the knight to the f3 square.")
+        print("  - 'O-O' means castling king side.")
+        print("  - 'O-O-O' means castling queen side.")
+        print("  - 'exd5' means capture the pawn at d5 with the e pawn.")
+        print("  - 'Nxd5' means capture the pawn at d5 with the knight.")
+        print()
+        print(
+            "See 'https://www.chess.com/terms/chess-notation' for more information.")
+        input("Press any key to continue...")
 
 
 def get_initial_board():
