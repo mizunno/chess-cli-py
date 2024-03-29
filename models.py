@@ -547,3 +547,21 @@ class King(Piece):
         one_step = is_one_step(self.position, move)
 
         return (line_move or diag_move) and one_step
+
+
+class PieceFactory:
+    def create_piece(category: Category, position: Position, color: Color):
+        if category == Category.PAWN:
+            return Pawn(position, color)
+        elif category == Category.ROOK:
+            return Rook(position, color)
+        elif category == Category.KNIGHT:
+            return Knight(position, color)
+        elif category == Category.BISHOP:
+            return Bishop(position, color)
+        elif category == Category.QUEEN:
+            return Queen(position, color)
+        elif category == Category.KING:
+            return King(position, color)
+        else:
+            raise ValueError("Invalid category")

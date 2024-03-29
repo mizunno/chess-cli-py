@@ -1437,59 +1437,81 @@ class TestBoardCheck(unittest.TestCase):
         self.board = Board(pieces)
 
     def get_initial_pieces_check(self):
-        # 8 |  R  |     |     |     |  K  |     |     |  R  |
-        #  --------------------------------------------------
-        # 7 |  P  |  P  |  P  |     |     |  P  |  P  |  P  |
-        #  --------------------------------------------------
-        # 6 |     |     |     |     |     |     |     |     |
-        # --------------------------------------------------
-        # 5 |     |     |     |     |     |     |     |     |
-        # --------------------------------------------------
-        # 4 |     |     |     |     |     |     |     |     |
-        # --------------------------------------------------
-        # 3 |     |     |     |     |     |     |     |     |
-        # --------------------------------------------------
-        # 2 |  P' |  P' |  P' |     |     |  P' |  P' |  P' |
-        # --------------------------------------------------
-        # 1 |  R' |     |     |     |  K' |     |     |  R' |
-        # --------------------------------------------------
-        #      a     b     c     d     e     f     g     h
         pieces = []
         # WHITE
-        pieces.append(Pawn(position=Position(6, 0), color=Color.WHITE))
-        pieces.append(Pawn(position=Position(6, 1), color=Color.WHITE))
-        pieces.append(Pawn(position=Position(6, 2), color=Color.WHITE))
-        pieces.append(Pawn(position=Position(6, 5), color=Color.WHITE))
-        pieces.append(Pawn(position=Position(6, 6), color=Color.WHITE))
-        pieces.append(Pawn(position=Position(6, 7), color=Color.WHITE))
-        pieces.append(Rook(position=Position(7, 0), color=Color.WHITE))
-        pieces.append(Rook(position=Position(7, 7), color=Color.WHITE))
         pieces.append(King(position=Position(7, 4), color=Color.WHITE))
-
         # BLACK
-        pieces.append(Pawn(position=Position(1, 0), color=Color.BLACK))
-        pieces.append(Pawn(position=Position(1, 1), color=Color.BLACK))
-        pieces.append(Pawn(position=Position(1, 2), color=Color.BLACK))
-        pieces.append(Pawn(position=Position(1, 5), color=Color.BLACK))
-        pieces.append(Pawn(position=Position(1, 6), color=Color.BLACK))
-        pieces.append(Pawn(position=Position(1, 7), color=Color.BLACK))
-        pieces.append(Rook(position=Position(0, 0), color=Color.BLACK))
-        pieces.append(Rook(position=Position(0, 7), color=Color.BLACK))
         pieces.append(King(position=Position(0, 4), color=Color.BLACK))
 
         return pieces
 
-    # def test_check_white_with_pawn(self):
-    #     # Add piece that puts king in check in position d2
-    #     self.board.pieces.append(Pawn(Position(5, 3), Color.BLACK))
-    #
-    #     self.board.show()
-    #
-    #     move = Movement(category=Category.PAWN, action=Action.CHECK,
-    #                     next_position=Position(6, 3))
-    #
-    #     self.board.perform_movement(move, Color.BLACK)
-    #     self.board.show()
+    def test_check_white_with_pawn(self):
+        # Add piece that puts king in check in position d2
+        self.board.pieces.append(Pawn(Position(5, 3), Color.BLACK))
+
+        move = Movement(category=Category.PAWN, action=Action.CHECK,
+                        next_position=Position(6, 3))
+
+        self.board.perform_movement(move, Color.BLACK)
+
+        self.assertTrue(self.board._is_king_in_check(Color.WHITE))
+
+    def test_check_black_with_pawn(self):
+        # Add piece that puts king in check in position d2
+        self.board.pieces.append(Pawn(Position(2, 3), Color.WHITE))
+
+        move = Movement(category=Category.PAWN, action=Action.CHECK,
+                        next_position=Position(1, 3))
+
+        self.board.perform_movement(move, Color.WHITE)
+
+        self.assertTrue(self.board._is_king_in_check(Color.BLACK))
+
+
+class TestBoardPromote(unittest.TestCase):
+
+    def setUp(self):
+        pieces = self.get_initial_pieces_promote()
+        self.board = Board(pieces)
+
+    def get_initial_pieces_promote(self):
+        pieces = []
+        # WHITE
+        pieces.append(Pawn(position=Position(6, 0), color=Color.BLACK))
+        # BLACK
+        pieces.append(Pawn(position=Position(1, 0), color=Color.WHITE))
+
+        return pieces
+
+    def test_promote_to_queen_black(self):
+        move = Movement(
+            category=Category.PAWN,
+            action=Action.PROMOTE,
+            next_position=Position(7, 0),
+            next_category=Category.QUEEN,
+        )
+        self.board.perform_movement(move, Color.BLACK)
+
+        new_piece = [
+            p for p in self.board.pieces if p.position == Position(7, 0)][0]
+
+        self.assertTrue(new_piece.category == Category.QUEEN)
+        self.assertTrue(new_piece.color == Color.BLACK)
+
+    def test_promote_to_queen_white(self):
+        move = Movement(
+            category=Category.PAWN,
+            action=Action.PROMOTE,
+            next_position=Position(0, 0),
+            next_category=Category.QUEEN,
+        )
+        self.board.perform_movement(move, Color.WHITE)
+
+        new_piece = [
+            p for p in self.board.pieces if p.position == Position(0, 0)][0]
+
+        self.assertTrue(new_piece.category == Category.QUEEN)
+        self.assertTrue(new_piece.color == Color.WHITE)
 
 
 if __name__ == "__main__":

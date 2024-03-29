@@ -15,6 +15,7 @@ from models import (
     Bishop,
     Queen,
     King,
+    PieceFactory,
 )
 from typing import List, Tuple
 
@@ -37,12 +38,11 @@ class Board:
             self._capture(move, color)
         elif move.action == Action.CHECK:
             self._check(move, color)
-            pass
         elif move.action == Action.CHECKMATE:
             # self._checkmate(move, color)
             pass
         elif move.action == Action.PROMOTE:
-            # self._promote(move, color)
+            self._promote(move, color)
             pass
         else:
             raise InvalidMovement()
@@ -105,7 +105,7 @@ class Board:
                     "Your right rook has been moved previously.")
 
         # King cannot be in check.
-        if self._is_king_in_check():
+        if self._is_king_in_check(color):
             raise InvalidMovement("Your king is in check!")
 
         if self._is_king_passing_through_check(color):
@@ -151,7 +151,7 @@ class Board:
                     "Your right rook has been moved previously.")
 
         # King cannot be in check.
-        if self._is_king_in_check():
+        if self._is_king_in_check(color):
             raise InvalidMovement("Your king is in check!")
 
         if self._is_king_passing_through_check(color):
@@ -202,30 +202,59 @@ class Board:
 
     def _check(self, move: Movement, color: Color):
         # We need to check if the king will be in check after the movement.
-        current_board = copy.deepcopy(self)
-        move.action = Action.MOVE
-        current_board.perform_movement(move, color)
-
-        enemy_color = self._get_enemy_color(color)
-        piece = current_board.history_movements[-1][0]
-
-        # Check if the enemy piece can capture the king
-        current_board.perform_movement(
-            Movement(
-                piece.category,
-                Action.CAPTURE,
-                current_board._get_king(enemy_color).position
-            ),
-            color
-        )
+        if not self._will_enemy_king_be_in_check(move, color):
+            raise InvalidMovement("Enemy king will not be in check!")
 
         # At this point, we can actually perform the check movement.
         self._move(move, color)
         # Remove last history movement because the previous _move
         # already added the movement to the history movements.
-        self.history_movements.pop()
+        last_movement = self.history_movements.pop()
         move.action = Action.CHECK
-        self.history_movements.append((piece, move))
+        self.history_movements.append((last_movement[0], move))
+
+    def _promote(self, move: Movement, color: Color):
+        if move.next_category == Category.PAWN:
+            raise InvalidMovement("You cannot promote to a pawn!")
+
+        move.action = Action.MOVE
+        self._move(move, color)
+
+        old_piece = self.history_movements[-1][0]
+        new_piece = PieceFactory.create_piece(
+            category=move.next_category, position=old_piece.position, color=old_piece.color)
+
+        self.pieces.remove(
+            [p for p in self.pieces if p.position == old_piece.position][0])
+        self.pieces.append(new_piece)
+        print(self.pieces)
+
+    def _will_enemy_king_be_in_check(self, move: Movement, color: Color):
+        # TODO: refactor and abstract
+        current_board = copy.deepcopy(self)
+
+        if move.action == Action.CHECK:
+            move.action = Action.MOVE
+
+        current_board.perform_movement(move, color)
+
+        enemy_color = self._get_enemy_color(color)
+        piece = current_board.history_movements[-1][0]
+
+        try:
+            # Check if the enemy piece can capture the king
+            current_board.perform_movement(
+                Movement(
+                    piece.category,
+                    Action.CAPTURE,
+                    current_board._get_king(enemy_color).position
+                ),
+                color
+            )
+        except InvalidMovement:
+            return False
+
+        return True
 
     def _get_king(self, color: Color):
         return [p for p in self.pieces if p.category == Category.KING and p.color == color][0]
@@ -268,11 +297,8 @@ class Board:
         # King cannot pass through check.
         for position in positions_to_check:
             current_board = copy.deepcopy(self)
-            king = [p for p in current_board.pieces if p.category ==
-                    Category.KING and p.color == color][0]
-            king.move(Movement(Category.KING, Action.MOVE, position))
-            # King is in check if there is an enemy
-            # piece that can capture your king
+            current_board.perform_movement(
+                Movement(Category.KING, Action.MOVE, position), color)
             enemy_pieces = [
                 p for p in current_board.pieces if p.color == enemy_color]
 
@@ -295,8 +321,8 @@ class Board:
     def _get_enemy_color(self, current_color):
         return Color.BLACK if current_color == Color.WHITE else Color.WHITE
 
-    def _is_king_in_check(self):
-        return self.history_movements[-1][1].action == Action.CHECK
+    def _is_king_in_check(self, color: Color):
+        return self.history_movements[-1][1].action == Action.CHECK and self.history_movements[-1][0].color != color
 
     def _get_possible_pieces(self, move: Movement, color: Color):
         possible_pieces = [
