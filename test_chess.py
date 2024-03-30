@@ -1467,6 +1467,18 @@ class TestBoardCheck(unittest.TestCase):
 
         self.assertTrue(self.board._is_king_in_check(Color.BLACK))
 
+    def test_move_ends_up_in_check(self):
+        # Add piece that puts king in check in position d2
+        self.board.pieces.append(Pawn(Position(5, 3), Color.BLACK))
+
+        move = Movement(category=Category.PAWN, action=Action.MOVE,
+                        next_position=Position(6, 3))
+
+        self.board.perform_movement(move, Color.BLACK)
+
+        self.assertTrue(self.board._is_king_in_check(Color.WHITE))
+        print(self.board.history_movements)
+
 
 class TestBoardPromote(unittest.TestCase):
 
@@ -1477,8 +1489,11 @@ class TestBoardPromote(unittest.TestCase):
     def get_initial_pieces_promote(self):
         pieces = []
         # WHITE
+        # King is added because a valid game has always kings
+        pieces.append(King(position=Position(0, 4), color=Color.BLACK))
         pieces.append(Pawn(position=Position(6, 0), color=Color.BLACK))
         # BLACK
+        pieces.append(King(position=Position(7, 4), color=Color.WHITE))
         pieces.append(Pawn(position=Position(1, 0), color=Color.WHITE))
 
         return pieces

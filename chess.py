@@ -39,11 +39,9 @@ class Board:
         elif move.action == Action.CHECK:
             self._check(move, color)
         elif move.action == Action.CHECKMATE:
-            # self._checkmate(move, color)
-            pass
+            self._checkmate(move, color)
         elif move.action == Action.PROMOTE:
             self._promote(move, color)
-            pass
         else:
             raise InvalidMovement()
 
@@ -72,6 +70,10 @@ class Board:
 
         if not moved:
             raise InvalidMovement()
+
+        current_board = copy.deepcopy(self)
+        if current_board._can_piece_capture_king(piece_moved, color):
+            move.action = Action.CHECK
 
         self.history_movements.append((piece_moved, move))
 
@@ -227,7 +229,6 @@ class Board:
         self.pieces.remove(
             [p for p in self.pieces if p.position == old_piece.position][0])
         self.pieces.append(new_piece)
-        print(self.pieces)
 
     def _will_enemy_king_be_in_check(self, move: Movement, color: Color):
         # TODO: refactor and abstract
@@ -238,16 +239,20 @@ class Board:
 
         current_board.perform_movement(move, color)
 
-        enemy_color = self._get_enemy_color(color)
         piece = current_board.history_movements[-1][0]
 
+        return current_board._can_piece_capture_king(piece, color)
+
+    def _can_piece_capture_king(self, piece: Piece, color: Color):
+        enemy_color = self._get_enemy_color(color)
+        king = self._get_king(enemy_color)
+
         try:
-            # Check if the enemy piece can capture the king
-            current_board.perform_movement(
+            self.perform_movement(
                 Movement(
                     piece.category,
                     Action.CAPTURE,
-                    current_board._get_king(enemy_color).position
+                    king.position
                 ),
                 color
             )
@@ -255,6 +260,10 @@ class Board:
             return False
 
         return True
+
+    def _checkmate(self, move: Movement, color: Color):
+        # TODO: efficient way to checkmate
+        pass
 
     def _get_king(self, color: Color):
         return [p for p in self.pieces if p.category == Category.KING and p.color == color][0]
