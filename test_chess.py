@@ -12,6 +12,7 @@ from models import (
     Queen,
     King,
     InvalidMovement,
+    Checkmate,
 )
 from algebraic_expression_parser import AlgebraicExpressionParser
 from chess import (
@@ -294,6 +295,54 @@ class TestPawn(unittest.TestCase):
 
         self.assertEqual(path, [Position(2, 0), Position(3, 0)])
 
+    def test_get_possible_moves_white_left_border(self):
+        pawn = Pawn(Position(6, 0), Color.WHITE)
+
+        moves = pawn.get_possible_moves()
+        expected = [
+            Movement(Category.PAWN, Action.MOVE, Position(5, 0)),
+            Movement(Category.PAWN, Action.MOVE, Position(4, 0)),
+            Movement(Category.PAWN, Action.CAPTURE, Position(5, 1)),
+        ]
+
+        self.assertEqual(moves, expected)
+
+    def test_get_possible_moves_white_right_border(self):
+        pawn = Pawn(Position(6, 7), Color.WHITE)
+
+        moves = pawn.get_possible_moves()
+        expected = [
+            Movement(Category.PAWN, Action.MOVE, Position(5, 7)),
+            Movement(Category.PAWN, Action.MOVE, Position(4, 7)),
+            Movement(Category.PAWN, Action.CAPTURE, Position(5, 6)),
+        ]
+
+        self.assertEqual(moves, expected)
+
+    def test_get_possible_moves_black_left_border(self):
+        pawn = Pawn(Position(1, 0), Color.BLACK)
+
+        moves = pawn.get_possible_moves()
+        expected = [
+            Movement(Category.PAWN, Action.MOVE, Position(2, 0)),
+            Movement(Category.PAWN, Action.MOVE, Position(3, 0)),
+            Movement(Category.PAWN, Action.CAPTURE, Position(2, 1)),
+        ]
+
+        self.assertEqual(moves, expected)
+
+    def test_get_possible_moves_black_right_border(self):
+        pawn = Pawn(Position(1, 7), Color.BLACK)
+
+        moves = pawn.get_possible_moves()
+        expected = [
+            Movement(Category.PAWN, Action.MOVE, Position(2, 7)),
+            Movement(Category.PAWN, Action.MOVE, Position(3, 7)),
+            Movement(Category.PAWN, Action.CAPTURE, Position(2, 6)),
+        ]
+
+        self.assertEqual(moves, expected)
+
 
 class TestRook(unittest.TestCase):
     def test_rook_is_rook_category(self):
@@ -417,12 +466,27 @@ class TestRook(unittest.TestCase):
             Position(4, 7),
         ])
 
-    # def test_invalid_move_piece_in_way_vertical(self):
-    #    rook = Rook(Position(7, 0), Color.WHITE)
-    #    movement = Movement(Category.ROOK, Action.MOVE, Position(5, 0))
+    def test_get_possible_moves(self):
+        rook = Rook(Position(3, 3), Color.WHITE)
+        possible_moves = rook.get_possible_moves()
 
-    #    with self.assertRaises(InvalidMovement):
-    #        rook.move(movement)
+        expected_moves = []
+        # Rook can move horizontally and vertically
+        for i in range(8):
+            if i != rook.position.y:
+                expected_moves.append(
+                    Movement(Category.ROOK, Action.MOVE, Position(rook.position.x, i)))
+                expected_moves.append(
+                    Movement(Category.ROOK, Action.CAPTURE, Position(rook.position.x, i)))
+
+            if i != rook.position.x:
+                expected_moves.append(
+                    Movement(Category.ROOK, Action.MOVE, Position(i, rook.position.y)))
+                expected_moves.append(
+                    Movement(Category.ROOK, Action.CAPTURE, Position(i, rook.position.y)))
+
+        # Check if the obtained moves match the expected moves
+        self.assertCountEqual(possible_moves, expected_moves)
 
 
 class TestKnight(unittest.TestCase):
@@ -531,6 +595,32 @@ class TestKnight(unittest.TestCase):
 
         with self.assertRaises(InvalidMovement):
             knight.move(movement)
+
+    def test_get_possible_moves(self):
+        knight = Knight(Position(3, 3), Color.WHITE)
+        possible_moves = knight.get_possible_moves()
+
+        knight_relative_positions = [
+            (-2, 1),
+            (-1, 2),
+            (1, 2),
+            (2, 1),
+            (2, -1),
+            (1, -2),
+            (-1, -2),
+            (-2, -1),
+        ]
+
+        expected_moves = []
+        # Rook can move horizontally and vertically
+        for dx, dy in knight_relative_positions:
+            expected_moves.append(
+                Movement(Category.KNIGHT, Action.MOVE, Position(knight.position.x + dx, knight.position.y + dy)))
+            expected_moves.append(
+                Movement(Category.KNIGHT, Action.CAPTURE, Position(knight.position.x + dx, knight.position.y + dy)))
+
+        # Check if the obtained moves match the expected moves
+        self.assertCountEqual(possible_moves, expected_moves)
 
 
 class TestBishop(unittest.TestCase):
@@ -1029,14 +1119,6 @@ class TestBoardCastling(unittest.TestCase):
         return pieces
 
     def test_castling_king_white(self):
-        # We need to populate history movements with atleast one movement
-        # because we just created the board and history_movements is empty
-        self.board.history_movements.append((
-            Pawn(position=Position(1, 0), color=Color.BLACK),
-            Movement(category=Category.PAWN, action=Action.MOVE,
-                     next_position=Position(2, 0))
-        ))
-
         move = Movement(category=Category.KING,
                         action=Action.CASTLING_KING, next_position=None)
         king = [p for p in self.board.pieces if p.category ==
@@ -1051,14 +1133,6 @@ class TestBoardCastling(unittest.TestCase):
         self.assertEqual(right_rook.position.y, 5)
 
     def test_castling_king_black(self):
-        # We need to populate history movements with atleast one movement
-        # because we just created the board and history_movements is empty
-        self.board.history_movements.append((
-            Pawn(position=Position(6, 0), color=Color.WHITE),
-            Movement(category=Category.PAWN, action=Action.MOVE,
-                     next_position=Position(5, 0))
-        ))
-
         move = Movement(category=Category.KING,
                         action=Action.CASTLING_KING, next_position=None)
         king = [p for p in self.board.pieces if p.category ==
@@ -1144,11 +1218,8 @@ class TestBoardCastling(unittest.TestCase):
 
     def test_castling_king_white_king_in_check(self):
         # - King is in check.
-        self.board.history_movements.append((
-            Pawn(position=Position(1, 5), color=Color.BLACK),
-            Movement(category=Category.PAWN, action=Action.CHECK,
-                     next_position=Position(2, 5))
-        ))
+        self.board.pieces.append(
+            Queen(position=Position(4, 4), color=Color.BLACK))
         move = Movement(category=Category.KING,
                         action=Action.CASTLING_KING, next_position=None)
         with self.assertRaises(InvalidMovement):
@@ -1156,11 +1227,8 @@ class TestBoardCastling(unittest.TestCase):
 
     def test_castling_king_black_king_in_check(self):
         # - King is in check.
-        self.board.history_movements.append((
-            Pawn(position=Position(6, 5), color=Color.WHITE),
-            Movement(category=Category.PAWN, action=Action.CHECK,
-                     next_position=Position(5, 5))
-        ))
+        self.board.pieces.append(
+            Queen(position=Position(4, 4), color=Color.WHITE))
         move = Movement(category=Category.KING,
                         action=Action.CASTLING_KING, next_position=None)
         with self.assertRaises(InvalidMovement):
@@ -1168,14 +1236,6 @@ class TestBoardCastling(unittest.TestCase):
 
     def test_castling_king_white_king_passes_through_check_in_7_5(self):
         # - King passes through check.
-
-        # Add a previous movement to avoid king is in check checking from firing
-        self.board.history_movements.append((
-            Pawn(position=Position(1, 5), color=Color.BLACK),
-            Movement(category=Category.PAWN, action=Action.CHECK,
-                     next_position=Position(2, 5))
-        ))
-
         # Add piece that puts king in check in position 7, 5
         self.board.pieces.append(Bishop(Position(5, 3), Color.BLACK))
         move = Movement(category=Category.KING,
@@ -1289,6 +1349,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Pawn(position=Position(3, 3), color=Color.WHITE),
             Pawn(position=Position(2, 4), color=Color.BLACK),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1297,7 +1359,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.WHITE)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(2, 4))
         self.assertEqual(board.pieces[0].color, Color.WHITE)
 
@@ -1305,6 +1367,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Pawn(position=Position(3, 3), color=Color.WHITE),
             Pawn(position=Position(2, 2), color=Color.BLACK),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1313,7 +1377,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.WHITE)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(2, 2))
         self.assertEqual(board.pieces[0].color, Color.WHITE)
 
@@ -1321,6 +1385,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Pawn(position=Position(3, 3), color=Color.BLACK),
             Pawn(position=Position(4, 2), color=Color.WHITE),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1329,7 +1395,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.BLACK)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(4, 2))
         self.assertEqual(board.pieces[0].color, Color.BLACK)
 
@@ -1337,6 +1403,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Pawn(position=Position(3, 3), color=Color.BLACK),
             Pawn(position=Position(4, 4), color=Color.WHITE),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1345,7 +1413,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.BLACK)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(4, 4))
         self.assertEqual(board.pieces[0].color, Color.BLACK)
 
@@ -1353,6 +1421,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Knight(position=Position(3, 3), color=Color.WHITE),
             Pawn(position=Position(1, 2), color=Color.BLACK),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1361,7 +1431,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.WHITE)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(1, 2))
         self.assertEqual(board.pieces[0].color, Color.WHITE)
 
@@ -1369,6 +1439,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Bishop(position=Position(3, 3), color=Color.BLACK),
             Pawn(position=Position(1, 1), color=Color.WHITE),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1377,7 +1449,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.BLACK)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(1, 1))
         self.assertEqual(board.pieces[0].color, Color.BLACK)
 
@@ -1385,6 +1457,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Rook(position=Position(3, 3), color=Color.WHITE),
             Pawn(position=Position(3, 1), color=Color.BLACK),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1393,7 +1467,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.WHITE)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(3, 1))
         self.assertEqual(board.pieces[0].color, Color.WHITE)
 
@@ -1401,6 +1475,8 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             Queen(position=Position(3, 3), color=Color.BLACK),
             Pawn(position=Position(1, 5), color=Color.WHITE),
+            King(position=Position(0, 5), color=Color.WHITE),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1409,7 +1485,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.BLACK)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 3)
         self.assertEqual(board.pieces[0].position, Position(1, 5))
         self.assertEqual(board.pieces[0].color, Color.BLACK)
 
@@ -1417,6 +1493,7 @@ class TestBoardCapture(unittest.TestCase):
         pieces = [
             King(position=Position(3, 3), color=Color.WHITE),
             Pawn(position=Position(2, 3), color=Color.BLACK),
+            King(position=Position(7, 5), color=Color.BLACK),
         ]
 
         board = Board(pieces)
@@ -1425,7 +1502,7 @@ class TestBoardCapture(unittest.TestCase):
 
         board.perform_movement(move, Color.WHITE)
 
-        self.assertEqual(len(board.pieces), 1)
+        self.assertEqual(len(board.pieces), 2)
         self.assertEqual(board.pieces[0].position, Position(2, 3))
         self.assertEqual(board.pieces[0].color, Color.WHITE)
 
@@ -1477,7 +1554,6 @@ class TestBoardCheck(unittest.TestCase):
         self.board.perform_movement(move, Color.BLACK)
 
         self.assertTrue(self.board._is_king_in_check(Color.WHITE))
-        print(self.board.history_movements)
 
 
 class TestBoardPromote(unittest.TestCase):
@@ -1527,6 +1603,46 @@ class TestBoardPromote(unittest.TestCase):
 
         self.assertTrue(new_piece.category == Category.QUEEN)
         self.assertTrue(new_piece.color == Color.WHITE)
+
+
+class TestBoardCheckmate(unittest.TestCase):
+
+    def setUp(self):
+        pieces = self.get_initial_pieces_checkmate()
+        self.board = Board(pieces)
+
+    def get_initial_pieces_checkmate(self):
+        pieces = []
+        # WHITE
+        pieces.append(King(position=Position(7, 4), color=Color.WHITE))
+        # BLACK
+        pieces.append(King(position=Position(0, 4), color=Color.BLACK))
+
+        return pieces
+
+    def test_checkmate_white(self):
+        # Add piece that puts king in check in position d2
+        self.board.pieces.append(Rook(Position(0, 3), Color.BLACK))
+        self.board.pieces.append(Rook(Position(0, 5), Color.BLACK))
+        self.board.pieces.append(Queen(Position(4, 4), Color.WHITE))
+
+        move = Movement(category=Category.QUEEN, action=Action.CHECKMATE,
+                        next_position=Position(2, 4))
+
+        with self.assertRaises(Checkmate):
+            self.board.perform_movement(move, Color.WHITE)
+
+    def test_invalid_checkmate_white(self):
+        # Add piece that puts king in check in position d2
+        self.board.pieces.append(Rook(Position(7, 3), Color.WHITE))
+        self.board.pieces.append(Rook(Position(7, 5), Color.WHITE))
+        self.board.pieces.append(Queen(Position(3, 4), Color.BLACK))
+
+        move = Movement(category=Category.QUEEN, action=Action.CHECKMATE,
+                        next_position=Position(4, 4))
+
+        with self.assertRaises(InvalidMovement):
+            self.board.perform_movement(move, Color.BLACK)
 
 
 if __name__ == "__main__":

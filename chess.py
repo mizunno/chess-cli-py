@@ -9,6 +9,7 @@ from models import (
     Color,
     Piece,
     InvalidMovement,
+    Checkmate,
     Pawn,
     Rook,
     Knight,
@@ -27,7 +28,7 @@ class Board:
         self.captured_pieces: List[Piece] = []
 
     # TODO: next_state
-    def perform_movement(self, move: Movement, color: Color):
+    def perform_movement(self, move: Movement, color: Color, stop_checkmate=False):
         if move.action == Action.MOVE:
             self._move(move, color)
         elif move.action == Action.CASTLING_KING:
@@ -39,11 +40,18 @@ class Board:
         elif move.action == Action.CHECK:
             self._check(move, color)
         elif move.action == Action.CHECKMATE:
-            self._checkmate(move, color)
+            if self._checkmate(move, color):
+                raise Checkmate()
+            else:
+                raise InvalidMovement("It's not a checkmate!")
         elif move.action == Action.PROMOTE:
             self._promote(move, color)
+
         else:
             raise InvalidMovement()
+
+        if not stop_checkmate and self._is_checkmate(self._get_enemy_color(color)):
+            raise Checkmate()
 
     def _move(self, move: Movement, color: Color):
         if not self._is_square_empty(move.next_position):
@@ -62,7 +70,9 @@ class Board:
                     # Check if there is a piece in the way
                     if self._piece_in_the_way(p, move):
                         continue
+
                 p.move(move)
+
                 moved = True
                 piece_moved = copy.deepcopy(p)
             except InvalidMovement:
@@ -174,6 +184,9 @@ class Board:
         if self._is_square_empty(move.next_position):
             raise InvalidMovement("You cannot capture an empty square!")
 
+        if self._get_piece(move.next_position).color == color:
+            raise InvalidMovement("You cannot capture your own piece!")
+
         possible_pieces = self._get_possible_pieces(move, color)
         # At this point, there must be only one valid piece,
         # although there could be multiple pieces with the
@@ -231,7 +244,6 @@ class Board:
         self.pieces.append(new_piece)
 
     def _will_enemy_king_be_in_check(self, move: Movement, color: Color):
-        # TODO: refactor and abstract
         current_board = copy.deepcopy(self)
 
         if move.action == Action.CHECK:
@@ -241,29 +253,60 @@ class Board:
 
         piece = current_board.history_movements[-1][0]
 
-        return current_board._can_piece_capture_king(piece, color)
-
-    def _can_piece_capture_king(self, piece: Piece, color: Color):
-        enemy_color = self._get_enemy_color(color)
-        king = self._get_king(enemy_color)
-
-        try:
-            self.perform_movement(
-                Movement(
-                    piece.category,
-                    Action.CAPTURE,
-                    king.position
-                ),
-                color
-            )
-        except InvalidMovement:
-            return False
-
-        return True
+        return current_board._can_piece_capture_king(piece, self._get_enemy_color(color))
 
     def _checkmate(self, move: Movement, color: Color):
-        # TODO: efficient way to checkmate
-        pass
+
+        move.action = Action.MOVE
+        self._move(move, color)
+        # Check checkmate rules
+        enemy_color = self._get_enemy_color(color)
+
+        return self._is_checkmate(enemy_color)
+
+        # # Check if the enemy player's king is in check
+        # if not self._is_king_in_check(enemy_color):
+        #     raise InvalidMovement("Enemy king is not in check!")
+        #
+        # # Iterate through all pieces of the enemy color
+        # enemy_pieces = [p for p in self.pieces if p.color == enemy_color]
+        # for piece in enemy_pieces:
+        #     possible_moves = piece.get_possible_moves()
+        #     for possible_move in possible_moves:
+        #         try:
+        #             # Simulate each possible move
+        #             temp_board = copy.deepcopy(self)
+        #             temp_board.perform_movement(
+        #                 possible_move, enemy_color, stop_checkmate=True)
+        #             # If the king is not in check after the move, it's not a checkmate
+        #             if not temp_board._is_king_in_check(enemy_color):
+        #                 return False
+        #         except InvalidMovement:
+        #             continue
+        #
+        # # If no legal moves can remove the check, it's a checkmate
+        # return True
+
+    def _is_checkmate(self, color: Color):
+        # Check if the player is in check
+        if not self._is_king_in_check(color):
+            return False
+
+        # Check if the player has any legal moves
+        player_pieces = [p for p in self.pieces if p.color == color]
+        for piece in player_pieces:
+            possible_moves = piece.get_possible_moves()
+            for possible_move in possible_moves:
+                try:
+                    temp_board = copy.deepcopy(self)
+                    temp_board.perform_movement(
+                        possible_move, color, stop_checkmate=True)
+                    if not temp_board._is_king_in_check(color):
+                        return False
+                except InvalidMovement:
+                    continue
+
+        return True
 
     def _get_king(self, color: Color):
         return [p for p in self.pieces if p.category == Category.KING and p.color == color][0]
@@ -302,36 +345,50 @@ class Board:
         else:
             positions_to_check = [Position(x=0, y=5), Position(x=0, y=6)]
 
-        enemy_color = self._get_enemy_color(color)
         # King cannot pass through check.
         for position in positions_to_check:
             current_board = copy.deepcopy(self)
             current_board.perform_movement(
-                Movement(Category.KING, Action.MOVE, position), color)
-            enemy_pieces = [
-                p for p in current_board.pieces if p.color == enemy_color]
+                Movement(Category.KING, Action.MOVE, position), color, stop_checkmate=True)
 
-            for enemy_piece in enemy_pieces:
-                try:
-                    current_board.perform_movement(
-                        Movement(
-                            enemy_piece.category,
-                            Action.CAPTURE,
-                            position
-                        ),
-                        enemy_color
-                    )
-                    return True
-                except InvalidMovement:
-                    continue
+            if current_board._is_king_in_check(color):
+                return True
 
         return False
 
     def _get_enemy_color(self, current_color):
         return Color.BLACK if current_color == Color.WHITE else Color.WHITE
 
-    def _is_king_in_check(self, color: Color):
-        return self.history_movements[-1][1].action == Action.CHECK and self.history_movements[-1][0].color != color
+    def _is_king_in_check(self, king_color: Color):
+        enemy_color = self._get_enemy_color(king_color)
+        # King is in check if there is an enemy piece that could capture it
+        enemy_pieces = [p for p in self.pieces if p.color == enemy_color]
+
+        for enemy_piece in enemy_pieces:
+            temp_board = copy.deepcopy(self)
+            if temp_board._can_piece_capture_king(enemy_piece, king_color):
+                return True
+
+        return False
+
+    def _can_piece_capture_king(self, enemy_piece: Piece, king_color: Color):
+
+        king = self._get_king(king_color)
+        enemy_color = self._get_enemy_color(king_color)
+        try:
+            self.perform_movement(
+                Movement(
+                    enemy_piece.category,
+                    Action.CAPTURE,
+                    king.position
+                ),
+                enemy_color,
+                stop_checkmate=True
+            )
+        except InvalidMovement:
+            return False
+
+        return True
 
     def _get_possible_pieces(self, move: Movement, color: Color):
         possible_pieces = [
@@ -423,6 +480,10 @@ class Game:
     def play(self):
         show_error = False
         error_msg = ""
+
+        show_info = False
+        info_msg = ""
+
         # begins infinite loop
         while 1:
             self._clear_screen()
@@ -430,6 +491,10 @@ class Game:
             if show_error:
                 print(error_msg)
                 show_error = False
+
+            if show_info:
+                print(info_msg)
+                show_info = False
 
             player_input = self._get_player_input()
 
@@ -443,8 +508,7 @@ class Game:
                     show_error = True
                     continue
 
-                self.current_board_state_idx -= 1
-                self.board = self.board_states[self.current_board_state_idx]
+                self._undo()
                 self._next_turn()
                 continue
             elif player_input == "redo":
@@ -453,8 +517,7 @@ class Game:
                     show_error = True
                     continue
 
-                self.current_board_state_idx += 1
-                self.board = self.board_states[self.current_board_state_idx]
+                self._redo()
                 self._next_turn()
                 continue
             elif player_input == "how":
@@ -465,17 +528,53 @@ class Game:
                 continue
 
             try:
+                # Parse the player input from algebraic notation
                 player_movement = self.parser.parse(player_input)
+
+                # Check if the player's king is in check. This flag is used next
+                # to check if the player is leaving the king in check.
+                king_in_check = self.board._is_king_in_check(self.current_turn)
+
+                # Perform the player movement on the board
                 self.board.perform_movement(player_movement, self.current_turn)
-                self._next_turn()
                 self._save_board_state()
+
+                # Check if the player is leaving the king in check
+                if king_in_check and self.board._is_king_in_check(self.current_turn):
+                    self._undo()
+                    raise InvalidMovement(
+                        "You cannot leave your king in check!")
+
+                # If the player's movement puts the enemy king in check, show a message
+                enemy_color = self.board._get_enemy_color(self.current_turn)
+                if self.board._is_king_in_check(enemy_color):
+                    print("Check for the enemy king!")
+                    info_msg = "Check!"
+                    show_info = True
+
+                self._next_turn()
+
             except InvalidMovement:
                 error_msg = "Invalid movement. Try again!"
                 show_error = True
+
             except ValueError:
-                raise
                 error_msg = "Invalid category. Try again!"
                 show_error = True
+
+            except Checkmate:
+                self._clear_screen()
+                self._show_game()
+                print("Checkmate!")
+                break
+
+    def _undo(self):
+        self.current_board_state_idx -= 1
+        self.board = self.board_states[self.current_board_state_idx]
+
+    def _redo(self):
+        self.current_board_state_idx += 1
+        self.board = self.board_states[self.current_board_state_idx]
 
     def _get_player_input(self):
         player_input = input(self._get_player_prompt())
