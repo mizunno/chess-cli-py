@@ -64,6 +64,10 @@ class Checkmate(Exception):
     pass
 
 
+class InvalidAlgebraicExpression(Exception):
+    pass
+
+
 class Piece:
     def __init__(
         self,

@@ -12,6 +12,7 @@ from models import (
     Queen,
     King,
     InvalidMovement,
+    InvalidAlgebraicExpression,
     Checkmate,
 )
 from algebraic_expression_parser import AlgebraicExpressionParser
@@ -194,7 +195,7 @@ class TestAlgebraicExpressionParser(unittest.TestCase):
 
     def test_invalid_category(self):
         expr = "bd5"
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidAlgebraicExpression):
             self.parser.parse(expr)
 
 

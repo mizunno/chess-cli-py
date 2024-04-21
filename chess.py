@@ -9,6 +9,7 @@ from models import (
     Color,
     Piece,
     InvalidMovement,
+    InvalidAlgebraicExpression,
     Checkmate,
     Pawn,
     Rook,
@@ -567,6 +568,9 @@ class Game:
                 self._show_game()
                 print("Checkmate!")
                 break
+            except InvalidAlgebraicExpression:
+                error_msg = "Invalid algebraic expression. Try again!"
+                show_error = True
 
     def _undo(self):
         self.current_board_state_idx -= 1

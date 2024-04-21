@@ -3,6 +3,7 @@ from models import (
     Category,
     Movement,
     Position,
+    InvalidAlgebraicExpression,
 )
 
 
@@ -10,20 +11,23 @@ class AlgebraicExpressionParser:
     def parse(self, expr):
         # (piece cat, action, dst)
 
-        if Action.CAPTURE in expr[1]:
-            return self._parse_capture(expr)
-        elif Action.CASTLING_KING == expr:
-            return self._parse_castling_king(expr)
-        elif Action.CASTLING_QUEEN == expr:
-            return self._parse_castling_queen(expr)
-        elif Action.CHECK in expr:
-            return self._parse_check(expr)
-        elif Action.CHECKMATE in expr[-1]:
-            return self._parse_checkmate(expr)
-        elif Action.PROMOTE == expr[-2]:
-            return self._parse_promote(expr)
-        else:
-            return self._parse_move(expr)
+        try:
+            if Action.CAPTURE in expr[1]:
+                return self._parse_capture(expr)
+            elif Action.CASTLING_KING == expr:
+                return self._parse_castling_king(expr)
+            elif Action.CASTLING_QUEEN == expr:
+                return self._parse_castling_queen(expr)
+            elif Action.CHECK in expr:
+                return self._parse_check(expr)
+            elif Action.CHECKMATE in expr[-1]:
+                return self._parse_checkmate(expr)
+            elif Action.PROMOTE == expr[-2]:
+                return self._parse_promote(expr)
+            else:
+                return self._parse_move(expr)
+        except Exception:
+            raise InvalidAlgebraicExpression()
 
     def _parse_capture(self, expr):
         col = self._letter_to_num(expr[2])
