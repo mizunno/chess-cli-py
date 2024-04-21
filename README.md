@@ -4,7 +4,7 @@ Play chess in your CLI. This is a simple chess game that you can play in your te
 
 I wrote this game during my free time to kill boredom.
 
-![cli](cli.png)
+<img src="cli.png" width="500">
 
 ## How to play
 
